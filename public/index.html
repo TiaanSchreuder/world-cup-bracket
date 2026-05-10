@@ -106,6 +106,34 @@
     const SKEY = "wc2026_v5";
     const DEFAULT_LOCK = "2026-06-11T00:00";
 
+    // ── Bracket layout constants ──
+    const R32_H  = 112; // fixed height of each R32 card (px)
+    const R32_G  = 6;   // gap between R32 cards
+    const R32_P  = R32_H + R32_G; // pitch = 118
+    const LH     = 58;  // height of R16/QF/SF/Final cards
+    const BH     = 16 * R32_H + 15 * R32_G; // total bracket height = 1882
+
+    const r32cy = i => i * R32_P + R32_H / 2;
+    const r16cy = i => (r32cy(2*i) + r32cy(2*i+1)) / 2;
+    const qfcy  = i => (r16cy(2*i) + r16cy(2*i+1)) / 2;
+    const sfcy  = i => (qfcy(2*i)  + qfcy(2*i+1))  / 2;
+    const fcy   =  () => (sfcy(0) + sfcy(1)) / 2;
+
+    const R16_PAD = Math.round(r16cy(0) - LH/2);
+    const QF_PAD  = Math.round(qfcy(0)  - LH/2);
+    const SF_PAD  = Math.round(sfcy(0)  - LH/2);
+    const FIN_PAD = Math.round(fcy()    - 56);
+
+    const R16_GAP = Math.round(r16cy(1) - r16cy(0) - LH);
+    const QF_GAP  = Math.round(qfcy(1)  - qfcy(0)  - LH);
+    const SF_GAP  = Math.round(sfcy(1)  - sfcy(0)  - LH);
+
+    const R32_CYS = Array.from({length:16}, (_,i) => r32cy(i));
+    const R16_CYS = Array.from({length:8},  (_,i) => r16cy(i));
+    const QF_CYS  = Array.from({length:4},  (_,i) => qfcy(i));
+    const SF_CYS  = Array.from({length:2},  (_,i) => sfcy(i));
+    const FIN_CY  = fcy();
+
     function hp(pw){let h=0;for(let i=0;i<pw.length;i++)h=((h<<5)-h+pw.charCodeAt(i))|0;return"h_"+Math.abs(h).toString(36)}
 
     function cntPicks(d){
@@ -383,22 +411,29 @@
                   {cantEdit?"🔒 View-only — picks are locked or you're viewing another player":"Select teams for each match using the dropdowns, then pick the winner to advance them."}
                 </p>
                 <div style={{overflowX:"auto",paddingBottom:20}}>
-                  <div style={{display:"flex",gap:6,minWidth:1100,alignItems:"flex-start"}}>
-
-                    <div style={{minWidth:210,display:"flex",flexDirection:"column",gap:6}}>
-                      <RoundTitle text="ROUND OF 32" css={css}/>
+                  {/* Column titles */}
+                  <div style={{display:"flex",gap:0,minWidth:1280,marginBottom:6}}>
+                    {[{w:220,t:"ROUND OF 32"},{w:28,t:""},{w:178,t:"ROUND OF 16"},{w:28,t:""},{w:178,t:"QUARTER-FINALS"},{w:28,t:""},{w:178,t:"SEMI-FINALS"},{w:28,t:""},{w:190,t:"🏆 FINAL"}].map((c,i)=>(
+                      <div key={i} style={{width:c.w,flexShrink:0,textAlign:"center"}}>{c.t&&<RoundTitle text={c.t} css={css}/>}</div>
+                    ))}
+                  </div>
+                  {/* Bracket */}
+                  <div style={{display:"flex",gap:0,minWidth:1280,alignItems:"flex-start",height:BH}}>
+                    {/* R32 */}
+                    <div style={{width:220,flexShrink:0,display:"flex",flexDirection:"column",gap:R32_G}}>
                       {R32.map(m=>{
                         const pick=actD?.r32?.[m.id]||{};
                         const avA=availableTeams(m,"a",actD);
                         const avB=availableTeams(m,"b",actD);
+                        const canP=!!(pick.a&&pick.b);
                         return(
-                          <div key={m.id} style={{background:css.card,border:`1px solid ${css.border}`,borderRadius:9,padding:4,margin:"0 2px"}}>
-                            <R32Slot value={pick.a||""} options={avA} label={m.aLabel} isWinner={pick.winner===pick.a&&!!pick.a} canPick={!!(pick.a&&pick.b)}
+                          <div key={m.id} style={{height:R32_H,background:css.card,border:`1px solid ${css.border}`,borderRadius:9,padding:4,boxSizing:"border-box",overflow:"hidden"}}>
+                            <R32Slot value={pick.a||""} options={avA} label={m.aLabel} isWinner={pick.winner===pick.a&&!!pick.a} canPick={canP}
                               onSelect={v=>!cantEdit&&setR32Team(m.id,"a",v)}
                               onPick={()=>!cantEdit&&setR32Winner(m.id,pick.a)}
                               disabled={cantEdit} css={css}/>
                             <div style={{height:1,background:css.border,margin:"2px 4px"}}/>
-                            <R32Slot value={pick.b||""} options={avB} label={m.bLabel} isWinner={pick.winner===pick.b&&!!pick.b} canPick={!!(pick.a&&pick.b)}
+                            <R32Slot value={pick.b||""} options={avB} label={m.bLabel} isWinner={pick.winner===pick.b&&!!pick.b} canPick={canP}
                               onSelect={v=>!cantEdit&&setR32Team(m.id,"b",v)}
                               onPick={()=>!cantEdit&&setR32Winner(m.id,pick.b)}
                               disabled={cantEdit} css={css}/>
@@ -406,29 +441,31 @@
                         );
                       })}
                     </div>
-
-                    <LaterCol title="ROUND OF 16" matches={LATER.r16} data={actD} getTeams={m=>laterTeams(m,actD)} pick={setLaterWinner} off={cantEdit} css={css} pad={24}/>
-                    <LaterCol title="QUARTER-FINALS" matches={LATER.qf} data={actD} getTeams={m=>laterTeams(m,actD)} pick={setLaterWinner} off={cantEdit} css={css} pad={76}/>
-                    <LaterCol title="SEMI-FINALS" matches={LATER.sf} data={actD} getTeams={m=>laterTeams(m,actD)} pick={setLaterWinner} off={cantEdit} css={css} pad={184}/>
-
-                    <div style={{display:"flex",flexDirection:"column",alignItems:"center",paddingTop:330}}>
-                      <RoundTitle text="🏆 FINAL" css={css}/>
-                      {(()=>{
-                        const m=LATER.final[0];const{a,b}=laterTeams(m,actD);const w=actD?.winners?.[m.id];
-                        return(
-                          <div style={{background:`linear-gradient(135deg,#0e2a50,#071628)`,border:`2px solid ${css.gold}`,borderRadius:11,padding:4,width:185,boxShadow:`0 0 28px rgba(242,201,76,.2)`}}>
+                    <Connector leftCYs={R32_CYS} rightCYs={R16_CYS} h={BH}/>
+                    <LaterCol matches={LATER.r16} data={actD} getTeams={m=>laterTeams(m,actD)} pick={setLaterWinner} off={cantEdit} css={css} padTop={R16_PAD} cardGap={R16_GAP}/>
+                    <Connector leftCYs={R16_CYS} rightCYs={QF_CYS} h={BH}/>
+                    <LaterCol matches={LATER.qf} data={actD} getTeams={m=>laterTeams(m,actD)} pick={setLaterWinner} off={cantEdit} css={css} padTop={QF_PAD} cardGap={QF_GAP}/>
+                    <Connector leftCYs={QF_CYS} rightCYs={SF_CYS} h={BH}/>
+                    <LaterCol matches={LATER.sf} data={actD} getTeams={m=>laterTeams(m,actD)} pick={setLaterWinner} off={cantEdit} css={css} padTop={SF_PAD} cardGap={SF_GAP}/>
+                    <Connector leftCYs={SF_CYS} rightCYs={[FIN_CY]} h={BH}/>
+                    {/* Final */}
+                    <div style={{width:190,flexShrink:0,paddingTop:FIN_PAD}}>
+                      <div style={{background:`linear-gradient(135deg,#0e2a50,#071628)`,border:`2px solid ${css.gold}`,borderRadius:11,padding:4,boxShadow:`0 0 28px rgba(242,201,76,.2)`}}>
+                        {(()=>{
+                          const m=LATER.final[0];const{a,b}=laterTeams(m,actD);const w=actD?.winners?.[m.id];
+                          return(<>
                             <PickSlot team={a} won={w===a} onClick={()=>a&&!cantEdit&&setLaterWinner(m.id,a)} off={cantEdit} css={css}/>
                             <div style={{height:1,background:"#1a3a5c",margin:"2px 4px"}}/>
                             <PickSlot team={b} won={w===b} onClick={()=>b&&!cantEdit&&setLaterWinner(m.id,b)} off={cantEdit} css={css}/>
-                          </div>
-                        );
-                      })()}
+                          </>);
+                        })()}
+                      </div>
                       {actD?.winners?.["final"]&&(
-                        <div style={{marginTop:18,textAlign:"center",animation:"fadeIn .5s"}}>
-                          <div style={{fontSize:38}}>🏆</div>
-                          <div style={{fontFamily:css.fH,fontSize:18,color:css.gold,letterSpacing:3,fontWeight:700,marginTop:4}}>CHAMPION</div>
-                          <div style={{fontSize:34,marginTop:4}}>{F$[actD.winners["final"]]}</div>
-                          <div style={{fontSize:16,color:"#f2c94c",fontWeight:800,marginTop:2}}>{actD.winners["final"]}</div>
+                        <div style={{marginTop:14,textAlign:"center",animation:"fadeIn .5s"}}>
+                          <div style={{fontSize:34}}>🏆</div>
+                          <div style={{fontFamily:css.fH,fontSize:14,color:css.gold,letterSpacing:3,fontWeight:700,marginTop:4}}>CHAMPION</div>
+                          <div style={{fontSize:28,marginTop:4}}>{F$[actD.winners["final"]]}</div>
+                          <div style={{fontSize:14,color:"#f2c94c",fontWeight:800,marginTop:2}}>{actD.winners["final"]}</div>
                         </div>
                       )}
                     </div>
@@ -524,45 +561,62 @@
     function R32Slot({value,options,label,isWinner,canPick,onSelect,onPick,disabled,css}){
       const[h,setH]=useState(false);
       return(
-        <div style={{padding:"3px 4px"}}>
-          {/* Team dropdown row */}
+        <div style={{padding:"2px 4px",display:"flex",flexDirection:"column",gap:2}}>
           <div style={{display:"flex",alignItems:"center",gap:4}}>
-            {value&&<span style={{fontSize:15,flexShrink:0}}>{F$[value]||"🏳️"}</span>}
+            {value&&<span style={{fontSize:14,flexShrink:0}}>{F$[value]||"🏳️"}</span>}
             <select value={value} onChange={e=>onSelect(e.target.value)} disabled={disabled}
-              style={{flex:1,padding:"5px 4px",background:value?css.cardB:css.bg,
+              style={{flex:1,padding:"4px 3px",background:value?css.cardB:css.bg,
                 border:`1px solid ${value?css.border:"#1a3a5c"}`,borderRadius:6,
                 color:value?(isWinner?css.greenTxt:"#e0eaff"):"#3a6080",
-                fontSize:11,fontFamily:css.f,fontWeight:value?600:400,outline:"none",cursor:disabled?"default":"pointer",
+                fontSize:10,fontFamily:css.f,fontWeight:value?600:400,outline:"none",cursor:disabled?"default":"pointer",
                 minWidth:0,appearance:"auto"}}>
               <option value="" style={{background:css.bg,color:"#3a6080"}}>{label}…</option>
               {options.map(t=><option key={t} value={t} style={{background:css.bg,color:"#c0c0b0"}}>{F$[t]} {t}</option>)}
             </select>
           </div>
-          {/* Advance button — shown only when this team is selected and both sides are picked */}
-          {value&&canPick&&!disabled&&(
-            <button onClick={onPick}
-              onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
-              style={{marginTop:3,width:"100%",padding:"4px 0",borderRadius:5,border:"none",cursor:"pointer",
-                background:isWinner?css.greenBg:h?"rgba(242,201,76,.15)":"rgba(242,201,76,.07)",
-                color:isWinner?css.greenTxt:css.gold,
-                fontSize:10,fontWeight:700,fontFamily:css.f,letterSpacing:1,transition:"all .15s"}}>
-              {isWinner?"✓ ADVANCES":"PICK TO ADVANCE →"}
-            </button>
-          )}
+          <button onClick={canPick&&!disabled?onPick:undefined}
+            onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
+            style={{width:"100%",padding:"3px 0",borderRadius:4,border:"none",
+              cursor:canPick&&!disabled&&value?"pointer":"default",
+              background:isWinner?css.greenBg:canPick&&h&&value?"rgba(242,201,76,.18)":"rgba(255,255,255,.03)",
+              color:isWinner?css.greenTxt:canPick&&value?css.gold:"#1e3a5c",
+              fontSize:9,fontWeight:700,fontFamily:css.f,letterSpacing:1,transition:"all .15s"}}>
+            {isWinner?"✓ ADVANCES":canPick&&value?"PICK TO ADVANCE →":"–"}
+          </button>
         </div>
       );
     }
 
-    function LaterCol({title,matches,data,getTeams,pick,off,css,pad=0}){
+    function Connector({leftCYs,rightCYs,h}){
       return(
-        <div style={{display:"flex",flexDirection:"column",gap:6,paddingTop:pad,minWidth:175}}>
-          <RoundTitle text={title} css={css}/>
-          {matches.map(m=>{
+        <svg width={28} height={h} style={{flexShrink:0,display:"block"}}>
+          <g stroke="rgba(242,201,76,0.18)" strokeWidth="1" fill="none">
+            {rightCYs.map((mid,i)=>{
+              const top=leftCYs[2*i], bot=leftCYs[2*i+1];
+              return(
+                <g key={i}>
+                  <line x1={0} y1={top} x2={14} y2={top}/>
+                  <line x1={0} y1={bot} x2={14} y2={bot}/>
+                  <line x1={14} y1={top} x2={14} y2={bot}/>
+                  <line x1={14} y1={mid} x2={28} y2={mid}/>
+                </g>
+              );
+            })}
+          </g>
+        </svg>
+      );
+    }
+
+    function LaterCol({matches,data,getTeams,pick,off,css,padTop=0,cardGap=6}){
+      return(
+        <div style={{width:178,flexShrink:0,paddingTop:padTop,display:"flex",flexDirection:"column"}}>
+          {matches.map((m,i)=>{
             const{a,b}=getTeams(m);const w=data?.winners?.[m.id];
+            const isLast=i===matches.length-1;
             return(
-              <div key={m.id} style={{background:css.card,border:`1px solid ${css.border}`,borderRadius:9,padding:3,margin:"0 3px"}}>
+              <div key={m.id} style={{height:LH,background:css.card,border:`1px solid ${css.border}`,borderRadius:9,padding:3,boxSizing:"border-box",marginBottom:isLast?0:cardGap}}>
                 <PickSlot team={a} won={w===a} onClick={()=>a&&!off&&pick(m.id,a)} off={off} css={css}/>
-                <div style={{height:1,background:css.border,margin:"2px 4px"}}/>
+                <div style={{height:1,background:css.border,margin:"1px 4px"}}/>
                 <PickSlot team={b} won={w===b} onClick={()=>b&&!off&&pick(m.id,b)} off={off} css={css}/>
               </div>
             );
