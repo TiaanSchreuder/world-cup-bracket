@@ -632,9 +632,9 @@
             const{a,b}=getTeams(m);const w=data?.winners?.[m.id];
             const isLast=i===matches.length-1;
             return(
-              <div key={m.id} style={{height:LH,background:css.card,border:`1px solid ${css.border}`,borderRadius:9,padding:3,boxSizing:"border-box",marginBottom:isLast?0:cardGap}}>
+              <div key={m.id} style={{height:LH,background:css.card,border:`1px solid ${css.border}`,borderRadius:9,padding:3,boxSizing:"border-box",marginBottom:isLast?0:cardGap,display:"flex",flexDirection:"column"}}>
                 <PickSlot team={a} won={w===a} onClick={()=>a&&!off&&pick(m.id,a)} off={off} css={css}/>
-                <div style={{height:1,background:css.border,margin:"1px 4px"}}/>
+                <div style={{height:1,flexShrink:0,background:css.border,margin:"0 4px"}}/>
                 <PickSlot team={b} won={w===b} onClick={()=>b&&!off&&pick(m.id,b)} off={off} css={css}/>
               </div>
             );
@@ -649,7 +649,7 @@
         <button onClick={onClick} disabled={!team||off}
           onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
           style={{
-            display:"flex",alignItems:"center",gap:6,width:"100%",padding:"6px 8px",
+            display:"flex",alignItems:"center",gap:6,width:"100%",padding:"0 8px",flex:1,
             background:won?css.greenBg:h&&team&&!off?"rgba(212,168,75,.06)":"transparent",
             border:"none",borderRadius:5,color:won?css.greenTxt:team?"#c0c0b0":"#2a2a28",
             cursor:!team||off?"default":"pointer",fontFamily:css.f,
