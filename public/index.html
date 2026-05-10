@@ -210,19 +210,31 @@
       function setR32Winner(mid,team){
         updateMe(u=>{
           const cur=u.r32[mid]||{};
-          const oldW=cur.winner;
-          const next={...cur,winner:team};
           const w={...u.winners};
-          if(oldW&&oldW!==team)clearDown(mid,w);
-          return{...u,r32:{...u.r32,[mid]:next},winners:w};
+          if(cur.winner===team){
+            // toggle off
+            const next={...cur};delete next.winner;
+            clearDown(mid,w);
+            return{...u,r32:{...u.r32,[mid]:next},winners:w};
+          }
+          if(cur.winner&&cur.winner!==team)clearDown(mid,w);
+          return{...u,r32:{...u.r32,[mid]:{...cur,winner:team}},winners:w};
         });
       }
       function setLaterWinner(mid,team){
         updateMe(u=>{
           const w={...u.winners};
-          if(w[mid]&&w[mid]!==team)clearDown(mid,w);
-          w[mid]=team;
+          if(w[mid]===team){delete w[mid];clearDown(mid,w);}
+          else{if(w[mid])clearDown(mid,w);w[mid]=team;}
           return{...u,winners:w};
+        });
+      }
+      function clearR32Match(mid){
+        updateMe(u=>{
+          const w={...u.winners};
+          clearDown(mid,w);
+          const r32={...u.r32};delete r32[mid];
+          return{...u,r32,winners:w};
         });
       }
       function clearDown(mid,w){
@@ -427,7 +439,11 @@
                         const avB=availableTeams(m,"b",actD);
                         const canP=!!(pick.a&&pick.b);
                         return(
-                          <div key={m.id} style={{height:R32_H,background:css.card,border:`1px solid ${css.border}`,borderRadius:9,padding:4,boxSizing:"border-box",overflow:"hidden"}}>
+                          <div key={m.id} style={{height:R32_H,background:css.card,border:`1px solid ${css.border}`,borderRadius:9,padding:4,boxSizing:"border-box",overflow:"hidden",position:"relative"}}>
+                            {(pick.a||pick.b)&&!cantEdit&&(
+                              <button onClick={()=>clearR32Match(m.id)} title="Clear this match"
+                                style={{position:"absolute",top:3,right:3,width:16,height:16,borderRadius:3,border:"none",background:"rgba(255,255,255,.06)",color:"#3a6080",fontSize:10,cursor:"pointer",lineHeight:1,zIndex:1,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+                            )}
                             <R32Slot value={pick.a||""} options={avA} label={m.aLabel} isWinner={pick.winner===pick.a&&!!pick.a} canPick={canP}
                               onSelect={v=>!cantEdit&&setR32Team(m.id,"a",v)}
                               onPick={()=>!cantEdit&&setR32Winner(m.id,pick.a)}
