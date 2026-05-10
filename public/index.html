@@ -70,22 +70,22 @@
     };
 
     const R32 = [
-      {id:"r32_1",  aLabel:"Runner-up A", aPool:"A", bLabel:"Runner-up B", bPool:"B"},
-      {id:"r32_2",  aLabel:"Winner E",    aPool:"E", bLabel:"3rd Place",   bPool:"*"},
-      {id:"r32_3",  aLabel:"Winner F",    aPool:"F", bLabel:"Runner-up C", bPool:"C"},
-      {id:"r32_4",  aLabel:"Winner C",    aPool:"C", bLabel:"Runner-up F", bPool:"F"},
-      {id:"r32_5",  aLabel:"Winner I",    aPool:"I", bLabel:"3rd Place",   bPool:"*"},
-      {id:"r32_6",  aLabel:"Runner-up E", aPool:"E", bLabel:"Runner-up I", bPool:"I"},
-      {id:"r32_7",  aLabel:"Winner A",    aPool:"A", bLabel:"3rd Place",   bPool:"*"},
-      {id:"r32_8",  aLabel:"Winner L",    aPool:"L", bLabel:"3rd Place",   bPool:"*"},
-      {id:"r32_9",  aLabel:"Winner D",    aPool:"D", bLabel:"3rd Place",   bPool:"*"},
-      {id:"r32_10", aLabel:"Winner G",    aPool:"G", bLabel:"3rd Place",   bPool:"*"},
-      {id:"r32_11", aLabel:"Runner-up K", aPool:"K", bLabel:"Runner-up L", bPool:"L"},
-      {id:"r32_12", aLabel:"Winner H",    aPool:"H", bLabel:"Runner-up J", bPool:"J"},
-      {id:"r32_13", aLabel:"Winner B",    aPool:"B", bLabel:"3rd Place",   bPool:"*"},
-      {id:"r32_14", aLabel:"Winner J",    aPool:"J", bLabel:"Runner-up H", bPool:"H"},
-      {id:"r32_15", aLabel:"Winner K",    aPool:"K", bLabel:"3rd Place",   bPool:"*"},
-      {id:"r32_16", aLabel:"Runner-up D", aPool:"D", bLabel:"Runner-up G", bPool:"G"},
+      {id:"r32_1",  aLabel:"Runner-up A", aPool:"A", bLabel:"Runner-up B",      bPool:"B"},
+      {id:"r32_2",  aLabel:"Winner E",    aPool:"E", bLabel:"Best 3rd (Group)", bPool:"*"},
+      {id:"r32_3",  aLabel:"Winner F",    aPool:"F", bLabel:"Runner-up C",      bPool:"C"},
+      {id:"r32_4",  aLabel:"Winner C",    aPool:"C", bLabel:"Runner-up F",      bPool:"F"},
+      {id:"r32_5",  aLabel:"Winner I",    aPool:"I", bLabel:"Best 3rd (Group)", bPool:"*"},
+      {id:"r32_6",  aLabel:"Runner-up E", aPool:"E", bLabel:"Runner-up I",      bPool:"I"},
+      {id:"r32_7",  aLabel:"Winner A",    aPool:"A", bLabel:"Best 3rd (Group)", bPool:"*"},
+      {id:"r32_8",  aLabel:"Winner L",    aPool:"L", bLabel:"Best 3rd (Group)", bPool:"*"},
+      {id:"r32_9",  aLabel:"Winner D",    aPool:"D", bLabel:"Best 3rd (Group)", bPool:"*"},
+      {id:"r32_10", aLabel:"Winner G",    aPool:"G", bLabel:"Best 3rd (Group)", bPool:"*"},
+      {id:"r32_11", aLabel:"Runner-up K", aPool:"K", bLabel:"Runner-up L",      bPool:"L"},
+      {id:"r32_12", aLabel:"Winner H",    aPool:"H", bLabel:"Runner-up J",      bPool:"J"},
+      {id:"r32_13", aLabel:"Winner B",    aPool:"B", bLabel:"Best 3rd (Group)", bPool:"*"},
+      {id:"r32_14", aLabel:"Winner J",    aPool:"J", bLabel:"Runner-up H",      bPool:"H"},
+      {id:"r32_15", aLabel:"Winner K",    aPool:"K", bLabel:"Best 3rd (Group)", bPool:"*"},
+      {id:"r32_16", aLabel:"Runner-up D", aPool:"D", bLabel:"Runner-up G",      bPool:"G"},
     ];
 
     const LATER = {
@@ -393,14 +393,14 @@
                         const avB=availableTeams(m,"b",actD);
                         return(
                           <div key={m.id} style={{background:css.card,border:`1px solid ${css.border}`,borderRadius:9,padding:4,margin:"0 2px"}}>
-                            <R32Slot value={pick.a||""} options={avA} label={m.aLabel} isWinner={pick.winner===pick.a&&!!pick.a}
+                            <R32Slot value={pick.a||""} options={avA} label={m.aLabel} isWinner={pick.winner===pick.a&&!!pick.a} canPick={!!(pick.a&&pick.b)}
                               onSelect={v=>!cantEdit&&setR32Team(m.id,"a",v)}
-                              onPick={()=>!cantEdit&&pick.a&&pick.b&&setR32Winner(m.id,pick.a)}
+                              onPick={()=>!cantEdit&&setR32Winner(m.id,pick.a)}
                               disabled={cantEdit} css={css}/>
                             <div style={{height:1,background:css.border,margin:"2px 4px"}}/>
-                            <R32Slot value={pick.b||""} options={avB} label={m.bLabel} isWinner={pick.winner===pick.b&&!!pick.b}
+                            <R32Slot value={pick.b||""} options={avB} label={m.bLabel} isWinner={pick.winner===pick.b&&!!pick.b} canPick={!!(pick.a&&pick.b)}
                               onSelect={v=>!cantEdit&&setR32Team(m.id,"b",v)}
-                              onPick={()=>!cantEdit&&pick.a&&pick.b&&setR32Winner(m.id,pick.b)}
+                              onPick={()=>!cantEdit&&setR32Winner(m.id,pick.b)}
                               disabled={cantEdit} css={css}/>
                           </div>
                         );
@@ -521,26 +521,34 @@
       );
     }
 
-    function R32Slot({value,options,label,isWinner,onSelect,onPick,disabled,css}){
+    function R32Slot({value,options,label,isWinner,canPick,onSelect,onPick,disabled,css}){
+      const[h,setH]=useState(false);
       return(
-        <div style={{display:"flex",alignItems:"center",gap:4,padding:"3px 4px"}}>
-          <button onClick={onPick} disabled={disabled||!value} title="Pick as winner"
-            style={{width:24,height:24,borderRadius:6,border:"none",
-              background:isWinner?css.greenBg:"transparent",
-              color:isWinner?css.greenTxt:"#2a2a28",fontSize:12,cursor:disabled||!value?"default":"pointer",
-              display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s",flexShrink:0}}>
-            {isWinner?"✓":"○"}
-          </button>
-          {value&&<span style={{fontSize:15,flexShrink:0}}>{F$[value]||"🏳️"}</span>}
-          <select value={value} onChange={e=>onSelect(e.target.value)} disabled={disabled}
-            style={{flex:1,padding:"5px 4px",background:value?css.cardB:css.bg,
-              border:`1px solid ${value?css.border:"#1a1a18"}`,borderRadius:6,
-              color:value?(isWinner?css.greenTxt:"#c0c0b0"):"#5a5a4a",
-              fontSize:11,fontFamily:css.f,fontWeight:value?600:400,outline:"none",cursor:disabled?"default":"pointer",
-              minWidth:0,appearance:"auto"}}>
-            <option value="" style={{background:css.bg,color:"#3a6080"}}>{label}…</option>
-            {options.map(t=><option key={t} value={t} style={{background:css.bg,color:"#c0c0b0"}}>{F$[t]} {t}</option>)}
-          </select>
+        <div style={{padding:"3px 4px"}}>
+          {/* Team dropdown row */}
+          <div style={{display:"flex",alignItems:"center",gap:4}}>
+            {value&&<span style={{fontSize:15,flexShrink:0}}>{F$[value]||"🏳️"}</span>}
+            <select value={value} onChange={e=>onSelect(e.target.value)} disabled={disabled}
+              style={{flex:1,padding:"5px 4px",background:value?css.cardB:css.bg,
+                border:`1px solid ${value?css.border:"#1a3a5c"}`,borderRadius:6,
+                color:value?(isWinner?css.greenTxt:"#e0eaff"):"#3a6080",
+                fontSize:11,fontFamily:css.f,fontWeight:value?600:400,outline:"none",cursor:disabled?"default":"pointer",
+                minWidth:0,appearance:"auto"}}>
+              <option value="" style={{background:css.bg,color:"#3a6080"}}>{label}…</option>
+              {options.map(t=><option key={t} value={t} style={{background:css.bg,color:"#c0c0b0"}}>{F$[t]} {t}</option>)}
+            </select>
+          </div>
+          {/* Advance button — shown only when this team is selected and both sides are picked */}
+          {value&&canPick&&!disabled&&(
+            <button onClick={onPick}
+              onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
+              style={{marginTop:3,width:"100%",padding:"4px 0",borderRadius:5,border:"none",cursor:"pointer",
+                background:isWinner?css.greenBg:h?"rgba(242,201,76,.15)":"rgba(242,201,76,.07)",
+                color:isWinner?css.greenTxt:css.gold,
+                fontSize:10,fontWeight:700,fontFamily:css.f,letterSpacing:1,transition:"all .15s"}}>
+              {isWinner?"✓ ADVANCES":"PICK TO ADVANCE →"}
+            </button>
+          )}
         </div>
       );
     }
