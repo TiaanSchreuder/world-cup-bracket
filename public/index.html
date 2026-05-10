@@ -439,16 +439,18 @@
                         const avB=availableTeams(m,"b",actD);
                         const canP=!!(pick.a&&pick.b);
                         return(
-                          <div key={m.id} style={{height:R32_H,background:css.card,border:`1px solid ${css.border}`,borderRadius:9,padding:4,boxSizing:"border-box",overflow:"hidden",position:"relative"}}>
-                            {(pick.a||pick.b)&&!cantEdit&&(
-                              <button onClick={()=>clearR32Match(m.id)} title="Clear this match"
-                                style={{position:"absolute",top:3,right:3,width:16,height:16,borderRadius:3,border:"none",background:"rgba(255,255,255,.06)",color:"#3a6080",fontSize:10,cursor:"pointer",lineHeight:1,zIndex:1,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
-                            )}
+                          <div key={m.id} style={{height:R32_H,background:css.card,border:`1px solid ${css.border}`,borderRadius:9,padding:4,boxSizing:"border-box",overflow:"hidden"}}>
                             <R32Slot value={pick.a||""} options={avA} label={m.aLabel} isWinner={pick.winner===pick.a&&!!pick.a} canPick={canP}
                               onSelect={v=>!cantEdit&&setR32Team(m.id,"a",v)}
                               onPick={()=>!cantEdit&&setR32Winner(m.id,pick.a)}
                               disabled={cantEdit} css={css}/>
-                            <div style={{height:1,background:css.border,margin:"2px 4px"}}/>
+                            <div style={{display:"flex",alignItems:"center",margin:"1px 4px",gap:4}}>
+                              <div style={{flex:1,height:1,background:css.border}}/>
+                              {(pick.a||pick.b)&&!cantEdit&&(
+                                <button onClick={()=>clearR32Match(m.id)} title="Clear this match"
+                                  style={{flexShrink:0,width:14,height:14,borderRadius:3,border:"none",background:"rgba(255,255,255,.06)",color:"#4a7aaa",fontSize:10,cursor:"pointer",lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+                              )}
+                            </div>
                             <R32Slot value={pick.b||""} options={avB} label={m.bLabel} isWinner={pick.winner===pick.b&&!!pick.b} canPick={canP}
                               onSelect={v=>!cantEdit&&setR32Team(m.id,"b",v)}
                               onPick={()=>!cantEdit&&setR32Winner(m.id,pick.b)}
