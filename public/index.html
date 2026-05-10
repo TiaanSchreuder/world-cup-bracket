@@ -53,6 +53,8 @@
       L:["England","Croatia","Ghana","Panama"],
     };
     const ALL_TEAMS = Object.values(GROUPS).flat();
+    const TEAM_GROUP = {};
+    Object.entries(GROUPS).forEach(([g,ts])=>ts.forEach(t=>TEAM_GROUP[t]=g));
 
     const F$ = {
       Mexico:"🇲🇽","South Africa":"🇿🇦","South Korea":"🇰🇷",Czechia:"🇨🇿",
@@ -461,7 +463,7 @@
                         const canP=!!(pick.a&&pick.b);
                         return(
                           <div key={m.id} style={{height:R32_H,background:css.card,border:`1px solid ${css.border}`,borderRadius:9,padding:4,boxSizing:"border-box",overflow:"hidden"}}>
-                            <R32Slot value={pick.a||""} options={avA} label={m.aLabel} isWinner={pick.winner===pick.a&&!!pick.a} canPick={canP}
+                            <R32Slot value={pick.a||""} options={avA} label={m.aLabel} isWinner={pick.winner===pick.a&&!!pick.a} canPick={canP} grouped={m.aPool==="*"}
                               onSelect={v=>!cantEdit&&setR32Team(m.id,"a",v)}
                               onPick={()=>!cantEdit&&setR32Winner(m.id,pick.a)}
                               disabled={cantEdit} css={css}/>
@@ -472,7 +474,7 @@
                                   style={{flexShrink:0,width:14,height:14,borderRadius:3,border:"none",background:"rgba(255,255,255,.06)",color:"#4a7aaa",fontSize:10,cursor:"pointer",lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
                               )}
                             </div>
-                            <R32Slot value={pick.b||""} options={avB} label={m.bLabel} isWinner={pick.winner===pick.b&&!!pick.b} canPick={canP}
+                            <R32Slot value={pick.b||""} options={avB} label={m.bLabel} isWinner={pick.winner===pick.b&&!!pick.b} canPick={canP} grouped={m.bPool==="*"}
                               onSelect={v=>!cantEdit&&setR32Team(m.id,"b",v)}
                               onPick={()=>!cantEdit&&setR32Winner(m.id,pick.b)}
                               disabled={cantEdit} css={css}/>
@@ -599,7 +601,7 @@
       );
     }
 
-    function R32Slot({value,options,label,isWinner,canPick,onSelect,onPick,disabled,css}){
+    function R32Slot({value,options,label,isWinner,canPick,grouped,onSelect,onPick,disabled,css}){
       const[h,setH]=useState(false);
       return(
         <div style={{padding:"2px 4px",display:"flex",flexDirection:"column",gap:2}}>
@@ -612,7 +614,16 @@
                 fontSize:10,fontFamily:css.f,fontWeight:value?600:400,outline:"none",cursor:disabled?"default":"pointer",
                 minWidth:0,appearance:"auto"}}>
               <option value="" style={{background:css.bg,color:"#3a6080"}}>{label}…</option>
-              {options.map(t=><option key={t} value={t} style={{background:css.bg,color:"#c0c0b0"}}>{F$[t]} {t}</option>)}
+              {grouped
+                ? Object.entries(
+                    options.reduce((acc,t)=>{const g=TEAM_GROUP[t];(acc[g]=acc[g]||[]).push(t);return acc;},{})
+                  ).map(([g,ts])=>(
+                    <optgroup key={g} label={`── Group ${g} ──`} style={{background:css.bg,color:"#4a7aaa"}}>
+                      {ts.map(t=><option key={t} value={t} style={{background:css.bg,color:"#c0c0b0"}}>{F$[t]} {t}</option>)}
+                    </optgroup>
+                  ))
+                : options.map(t=><option key={t} value={t} style={{background:css.bg,color:"#c0c0b0"}}>{F$[t]} {t}</option>)
+              }
             </select>
           </div>
           <button onClick={canPick&&!disabled?onPick:undefined}
