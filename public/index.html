@@ -419,7 +419,28 @@
 
           <div style={{maxWidth:1260,margin:"0 auto",padding:14}}>
             {tab==="bracket"&&(
-              <div>
+              <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
+                {/* Groups sidebar */}
+                <div style={{width:185,flexShrink:0}}>
+                  <div style={{fontFamily:css.fH,fontSize:11,color:"#4a7aaa",letterSpacing:2,fontWeight:600,marginBottom:8,textAlign:"center"}}>GROUPS</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    {Object.entries(GROUPS).map(([grp,teams])=>(
+                      <div key={grp} style={{background:css.card,border:`1px solid ${css.border}`,borderRadius:9,overflow:"hidden"}}>
+                        <div style={{background:"linear-gradient(135deg,#0a2040,#0d2a52)",padding:"4px 10px",borderBottom:`1px solid ${css.border}`}}>
+                          <span style={{fontFamily:css.fH,fontSize:11,fontWeight:700,color:css.gold,letterSpacing:2}}>GROUP {grp}</span>
+                        </div>
+                        {teams.map((t,i)=>(
+                          <div key={t} style={{display:"flex",alignItems:"center",gap:7,padding:"5px 10px",borderBottom:i<teams.length-1?`1px solid rgba(30,58,92,0.5)`:"none"}}>
+                            <span style={{fontSize:14}}>{F$[t]||"🏳️"}</span>
+                            <span style={{fontSize:10,fontWeight:600,color:"#b0c8e0"}}>{t}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* Bracket */}
+                <div style={{flex:1,minWidth:0}}>
                 <p style={{color:"#3a6080",fontSize:12,textAlign:"center",marginBottom:16,fontWeight:500}}>
                   {cantEdit?"🔒 View-only — picks are locked or you're viewing another player":"Select teams for each match using the dropdowns, then pick the winner to advance them."}
                 </p>
@@ -489,6 +510,7 @@
                       )}
                     </div>
                   </div>
+                </div>
                 </div>
               </div>
             )}
