@@ -1,0 +1,594 @@
+import { useState, useEffect, useCallback, useRef } from "react";
+
+/* ═══════════════════════════════════════════════
+   DATA
+   ═══════════════════════════════════════════════ */
+const GROUPS = {
+  A:["Mexico","South Africa","South Korea","Czechia"],
+  B:["Canada","Switzerland","Qatar","Bosnia & Herzegovina"],
+  C:["Brazil","Morocco","Haiti","Scotland"],
+  D:["USA","Paraguay","Australia","Türkiye"],
+  E:["Germany","Curaçao","Ivory Coast","Ecuador"],
+  F:["Netherlands","Japan","Sweden","Tunisia"],
+  G:["Belgium","Egypt","Iran","New Zealand"],
+  H:["Spain","Cape Verde","Saudi Arabia","Uruguay"],
+  I:["France","Senegal","Norway","Iraq"],
+  J:["Argentina","Algeria","Austria","Jordan"],
+  K:["Portugal","DR Congo","Uzbekistan","Colombia"],
+  L:["England","Croatia","Ghana","Panama"],
+};
+const ALL_TEAMS = Object.values(GROUPS).flat();
+
+const F$ = {
+  Mexico:"🇲🇽","South Africa":"🇿🇦","South Korea":"🇰🇷",Czechia:"🇨🇿",
+  Canada:"🇨🇦",Switzerland:"🇨🇭",Qatar:"🇶🇦","Bosnia & Herzegovina":"🇧🇦",
+  Brazil:"🇧🇷",Morocco:"🇲🇦",Haiti:"🇭🇹",Scotland:"🏴󠁧󠁢󠁳󠁣󠁴󠁿",
+  USA:"🇺🇸",Paraguay:"🇵🇾",Australia:"🇦🇺","Türkiye":"🇹🇷",
+  Germany:"🇩🇪","Curaçao":"🇨🇼","Ivory Coast":"🇨🇮",Ecuador:"🇪🇨",
+  Netherlands:"🇳🇱",Japan:"🇯🇵",Sweden:"🇸🇪",Tunisia:"🇹🇳",
+  Belgium:"🇧🇪",Egypt:"🇪🇬",Iran:"🇮🇷","New Zealand":"🇳🇿",
+  Spain:"🇪🇸","Cape Verde":"🇨🇻","Saudi Arabia":"🇸🇦",Uruguay:"🇺🇾",
+  France:"🇫🇷",Senegal:"🇸🇳",Norway:"🇳🇴",Iraq:"🇮🇶",
+  Argentina:"🇦🇷",Algeria:"🇩🇿",Austria:"🇦🇹",Jordan:"🇯🇴",
+  Portugal:"🇵🇹","DR Congo":"🇨🇩",Uzbekistan:"🇺🇿",Colombia:"🇨🇴",
+  England:"🏴󠁧󠁢󠁥󠁮󠁧󠁿",Croatia:"🇭🇷",Ghana:"🇬🇭",Panama:"🇵🇦",
+};
+
+// R32 match defs — each side says where the team comes from
+const R32 = [
+  {id:"r32_1",  aLabel:"Runner-up A", aPool:"A", bLabel:"Runner-up B", bPool:"B"},
+  {id:"r32_2",  aLabel:"Winner E",    aPool:"E", bLabel:"3rd Place",   bPool:"*"},
+  {id:"r32_3",  aLabel:"Winner F",    aPool:"F", bLabel:"Runner-up C", bPool:"C"},
+  {id:"r32_4",  aLabel:"Winner C",    aPool:"C", bLabel:"Runner-up F", bPool:"F"},
+  {id:"r32_5",  aLabel:"Winner I",    aPool:"I", bLabel:"3rd Place",   bPool:"*"},
+  {id:"r32_6",  aLabel:"Runner-up E", aPool:"E", bLabel:"Runner-up I", bPool:"I"},
+  {id:"r32_7",  aLabel:"Winner A",    aPool:"A", bLabel:"3rd Place",   bPool:"*"},
+  {id:"r32_8",  aLabel:"Winner L",    aPool:"L", bLabel:"3rd Place",   bPool:"*"},
+  {id:"r32_9",  aLabel:"Winner D",    aPool:"D", bLabel:"3rd Place",   bPool:"*"},
+  {id:"r32_10", aLabel:"Winner G",    aPool:"G", bLabel:"3rd Place",   bPool:"*"},
+  {id:"r32_11", aLabel:"Runner-up K", aPool:"K", bLabel:"Runner-up L", bPool:"L"},
+  {id:"r32_12", aLabel:"Winner H",    aPool:"H", bLabel:"Runner-up J", bPool:"J"},
+  {id:"r32_13", aLabel:"Winner B",    aPool:"B", bLabel:"3rd Place",   bPool:"*"},
+  {id:"r32_14", aLabel:"Winner J",    aPool:"J", bLabel:"Runner-up H", bPool:"H"},
+  {id:"r32_15", aLabel:"Winner K",    aPool:"K", bLabel:"3rd Place",   bPool:"*"},
+  {id:"r32_16", aLabel:"Runner-up D", aPool:"D", bLabel:"Runner-up G", bPool:"G"},
+];
+
+const LATER = {
+  r16:[
+    {id:"r16_1",a:"r32_1",b:"r32_2"},{id:"r16_2",a:"r32_3",b:"r32_4"},
+    {id:"r16_3",a:"r32_5",b:"r32_6"},{id:"r16_4",a:"r32_7",b:"r32_8"},
+    {id:"r16_5",a:"r32_9",b:"r32_10"},{id:"r16_6",a:"r32_11",b:"r32_12"},
+    {id:"r16_7",a:"r32_13",b:"r32_14"},{id:"r16_8",a:"r32_15",b:"r32_16"},
+  ],
+  qf:[
+    {id:"qf_1",a:"r16_1",b:"r16_2"},{id:"qf_2",a:"r16_3",b:"r16_4"},
+    {id:"qf_3",a:"r16_5",b:"r16_6"},{id:"qf_4",a:"r16_7",b:"r16_8"},
+  ],
+  sf:[{id:"sf_1",a:"qf_1",b:"qf_2"},{id:"sf_2",a:"qf_3",b:"qf_4"}],
+  final:[{id:"final",a:"sf_1",b:"sf_2"}],
+};
+
+const SKEY = "wc2026_v5";
+const DEFAULT_LOCK = "2026-06-11T00:00";
+
+function hp(pw){let h=0;for(let i=0;i<pw.length;i++)h=((h<<5)-h+pw.charCodeAt(i))|0;return"h_"+Math.abs(h).toString(36)}
+
+function cntPicks(d){
+  if(!d)return 0;
+  let c=0;
+  R32.forEach(m=>{if(d.r32?.[m.id]?.winner)c++});
+  [...LATER.r16,...LATER.qf,...LATER.sf,...LATER.final].forEach(m=>{if(d.winners?.[m.id])c++});
+  return c;
+}
+
+/* ═══════════════════════════════════════════════
+   MAIN APP
+   ═══════════════════════════════════════════════ */
+export default function App(){
+  const[me,setMe]=useState(null);
+  const[pool,setPool]=useState({users:{},lockDate:DEFAULT_LOCK});
+  const[tab,setTab]=useState("bracket");
+  const[joinN,setJoinN]=useState("");
+  const[joinP,setJoinP]=useState("");
+  const[logP,setLogP]=useState("");
+  const[logT,setLogT]=useState(null);
+  const[err,setErr]=useState("");
+  const[adminOpen,setAdminOpen]=useState(false);
+  const[viewing,setViewing]=useState(null);
+  const[ready,setReady]=useState(false);
+  const[saving,setSaving]=useState(false);
+  const[lastSync,setLastSync]=useState(null);
+  const ref=useRef(pool); ref.current=pool;
+
+  const locked=new Date()>new Date(pool.lockDate);
+  const cantEdit=locked||!!viewing;
+  const uCnt=Object.keys(pool.users).length;
+  const myD=me?pool.users[me]:null;
+  const actD=viewing?pool.users[viewing]:myD;
+
+  // storage
+  const load=useCallback(async()=>{
+    try{const r=await window.storage.get(SKEY,true);if(r?.value){const p=JSON.parse(r.value);setPool(p);ref.current=p;}}catch(_){}
+    setReady(true);setLastSync(new Date());
+  },[]);
+  const persist=useCallback(async p=>{setSaving(true);try{await window.storage.set(SKEY,JSON.stringify(p),true)}catch(_){}setSaving(false)},[]);
+  useEffect(()=>{load()},[load]);
+  useEffect(()=>{
+    const id=setInterval(async()=>{
+      try{const r=await window.storage.get(SKEY,true);if(r?.value){const p=JSON.parse(r.value);if(me&&ref.current.users[me])p.users[me]=ref.current.users[me];setPool(p);ref.current=p;setLastSync(new Date());}}catch(_){}
+    },20000);return()=>clearInterval(id);
+  },[me]);
+  function commit(n){setPool(n);ref.current=n;persist(n)}
+
+  // auth
+  function doJoin(){
+    const n=joinN.trim(),pw=joinP.trim();
+    if(!n||!pw){setErr("Name and password required");return}
+    if(pw.length<3){setErr("Password must be at least 3 characters");return}
+    if(uCnt>=10){setErr("Pool full (10/10)");return}
+    if(pool.users[n]){setErr("Name taken");return}
+    const nx={...pool,users:{...pool.users,[n]:{pw:hp(pw),r32:{},winners:{}}}};
+    commit(nx);setMe(n);setJoinN("");setJoinP("");setErr("");
+  }
+  function doLogin(name){
+    const pw=logP.trim();
+    if(!pw){setErr("Enter password");return}
+    if(pool.users[name]?.pw!==hp(pw)){setErr("Wrong password");return}
+    setMe(name);setLogT(null);setLogP("");setErr("");
+  }
+  function logout(){setMe(null);setViewing(null);setLogT(null);setLogP("");setErr("")}
+
+  // mutations
+  function updateMe(fn){if(locked||!me)return;commit({...pool,users:{...pool.users,[me]:fn({...pool.users[me]})}})}
+
+  // R32: pick a team for side a or b, or pick winner
+  function setR32Team(mid,side,team){
+    updateMe(u=>{
+      const cur=u.r32[mid]||{};
+      const next={...cur,[side]:team};
+      // if changing a team that was the winner, clear winner
+      if(cur.winner===cur[side])delete next.winner;
+      // clear downstream if winner changes
+      if(cur.winner&&next.winner!==cur.winner) clearDown(mid,{...u.winners});
+      return{...u,r32:{...u.r32,[mid]:next}};
+    });
+  }
+  function setR32Winner(mid,team){
+    updateMe(u=>{
+      const cur=u.r32[mid]||{};
+      const oldW=cur.winner;
+      const next={...cur,winner:team};
+      const w={...u.winners};
+      if(oldW&&oldW!==team)clearDown(mid,w);
+      return{...u,r32:{...u.r32,[mid]:next},winners:w};
+    });
+  }
+  function setLaterWinner(mid,team){
+    updateMe(u=>{
+      const w={...u.winners};
+      if(w[mid]&&w[mid]!==team)clearDown(mid,w);
+      w[mid]=team;
+      return{...u,winners:w};
+    });
+  }
+  function clearDown(mid,w){
+    [...LATER.r16,...LATER.qf,...LATER.sf,...LATER.final].forEach(m=>{
+      if(m.a===mid||m.b===mid){delete w[m.id];clearDown(m.id,w)}
+    });
+  }
+
+  // resolve team for a later-round slot
+  function getWinner(mid,d){
+    if(!d)return null;
+    // check r32
+    const r3=d.r32?.[mid];if(r3?.winner)return r3.winner;
+    // check later
+    return d.winners?.[mid]||null;
+  }
+  function laterTeams(m,d){return{a:getWinner(m.a,d),b:getWinner(m.b,d)}}
+
+  // get all teams already used in R32 selections (to prevent duplicates)
+  function usedTeams(d,excludeMatch,excludeSide){
+    if(!d)return new Set();
+    const used=new Set();
+    R32.forEach(m=>{
+      const pick=d.r32?.[m.id];if(!pick)return;
+      if(m.id===excludeMatch&&excludeSide==="a"){if(pick.b)used.add(pick.b);}
+      else if(m.id===excludeMatch&&excludeSide==="b"){if(pick.a)used.add(pick.a);}
+      else{if(pick.a)used.add(pick.a);if(pick.b)used.add(pick.b);}
+    });
+    return used;
+  }
+
+  // get available teams for a dropdown
+  function availableTeams(m,side,d){
+    const pool_id=side==="a"?m.aPool:m.bPool;
+    let candidates=pool_id==="*"?ALL_TEAMS:GROUPS[pool_id]||[];
+    const used=usedTeams(d,m.id,side);
+    // keep current selection even if "used"
+    const cur=d?.r32?.[m.id]?.[side];
+    return candidates.filter(t=>!used.has(t)||t===cur);
+  }
+
+  const totalPicks=cntPicks(actD);
+
+  // WhatsApp share
+  function shareWA(){
+    const url=window.location.href;
+    const msg=encodeURIComponent(`⚽🏆 Join my World Cup 2026 Bracket Pool!\n\nPredict the knockout stage from Round of 32 to the Final. Picks lock on ${new Date(pool.lockDate).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}.\n\n👉 ${url}`);
+    window.open(`https://api.whatsapp.com/send?text=${msg}`,"_blank");
+  }
+
+  // ── styles ──
+  const css = {
+    f:"'DM Sans',sans-serif", fH:"'Oswald',sans-serif",
+    gold:"#d4a84b", goldDark:"#a07c2e", goldBg:"#1c1810",
+    bg:"#0a0a0a", card:"#111110", cardB:"#161614", border:"#1e1d1a",
+    green:"#4a9e2f", greenBg:"#142010", greenTxt:"#8fd470",
+    red:"#d44",
+  };
+
+  // ──── LOADING ────
+  if(!ready)return(
+    <div style={{display:"flex",justifyContent:"center",alignItems:"center",height:"100vh",background:css.bg,color:css.gold,fontFamily:css.f}}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;900&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+      <div style={{textAlign:"center"}}><div style={{fontSize:56,marginBottom:14}}>⚽</div><div style={{fontFamily:css.fH,fontSize:18,letterSpacing:4,textTransform:"uppercase"}}>Loading…</div></div>
+    </div>
+  );
+
+  // ──── LOGIN SCREEN ────
+  if(!me)return(
+    <div style={{minHeight:"100vh",background:css.bg,color:"#ddd",fontFamily:css.f}}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;900&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+      {/* Hero */}
+      <div style={{background:`linear-gradient(180deg,#18160e 0%,${css.bg} 100%)`,padding:"40px 20px 30px",textAlign:"center"}}>
+        <div style={{fontSize:64,marginBottom:8}}>🏆</div>
+        <h1 style={{fontFamily:css.fH,fontSize:34,fontWeight:700,color:css.gold,margin:0,letterSpacing:4,textTransform:"uppercase"}}>World Cup 2026</h1>
+        <p style={{color:"#6b6550",fontSize:14,margin:"8px 0 0",letterSpacing:2,fontWeight:500}}>BRACKET PREDICTION POOL</p>
+        <div style={{height:2,width:60,background:`linear-gradient(90deg,transparent,${css.gold},transparent)`,margin:"16px auto"}}/>
+        <div style={{display:"flex",justifyContent:"center",gap:20,marginTop:12}}>
+          <Stat label="PLAYERS" value={`${uCnt}/10`} css={css}/>
+          <Stat label="STATUS" value={locked?"LOCKED":"OPEN"} css={css} color={locked?css.red:css.green}/>
+          <Stat label="LOCKS" value={new Date(pool.lockDate).toLocaleDateString("en-GB",{day:"numeric",month:"short"})} css={css}/>
+        </div>
+      </div>
+
+      <div style={{maxWidth:420,margin:"0 auto",padding:"0 20px 40px"}}>
+        {err&&<div style={{color:css.red,fontSize:13,padding:"10px 14px",background:"#1a0e0e",borderRadius:8,border:"1px solid #2a1515",marginBottom:16,marginTop:16}}>⚠ {err}</div>}
+
+        {/* Existing users */}
+        {uCnt>0&&(
+          <div style={{marginTop:24,marginBottom:28}}>
+            <SectionLabel text="LOG IN" css={css}/>
+            {Object.keys(pool.users).map(name=>(
+              <div key={name} style={{marginBottom:8}}>
+                <button onClick={()=>{setLogT(logT===name?null:name);setErr("");setLogP("")}}
+                  style={{width:"100%",padding:"14px 18px",background:logT===name?css.goldBg:css.card,border:`1px solid ${logT===name?css.goldDark:css.border}`,borderRadius:10,color:logT===name?css.gold:"#c0c0b0",fontSize:15,cursor:"pointer",fontFamily:css.f,textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",transition:"all .2s"}}>
+                  <span style={{fontWeight:600}}>⚽ {name}</span>
+                  <span style={{fontSize:11,color:"#5a5a4a",fontWeight:500}}>{cntPicks(pool.users[name])}/31 picks</span>
+                </button>
+                {logT===name&&(
+                  <div style={{display:"flex",gap:8,marginTop:8}}>
+                    <input type="password" value={logP} onChange={e=>setLogP(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doLogin(name)}
+                      placeholder="Enter password…" autoFocus
+                      style={{flex:1,padding:"12px 14px",background:css.bg,border:`1px solid #2a2a28`,borderRadius:8,color:"#ddd",fontSize:14,fontFamily:css.f,outline:"none"}}/>
+                    <button onClick={()=>doLogin(name)}
+                      style={{padding:"12px 22px",background:`linear-gradient(135deg,${css.gold},${css.goldDark})`,border:"none",borderRadius:8,color:css.bg,fontWeight:800,fontSize:15,cursor:"pointer",fontFamily:css.f}}>→</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Join */}
+        {uCnt<10&&!locked&&(
+          <div style={{marginBottom:28}}>
+            <SectionLabel text="JOIN THE POOL" css={css}/>
+            <input value={joinN} onChange={e=>setJoinN(e.target.value)} placeholder="Your name…"
+              style={{width:"100%",boxSizing:"border-box",padding:"13px 16px",marginBottom:8,background:css.card,border:`1px solid ${css.border}`,borderRadius:10,color:"#ddd",fontSize:15,fontFamily:css.f,outline:"none"}}/>
+            <input type="password" value={joinP} onChange={e=>setJoinP(e.target.value)} placeholder="Create a password…"
+              onKeyDown={e=>e.key==="Enter"&&doJoin()}
+              style={{width:"100%",boxSizing:"border-box",padding:"13px 16px",marginBottom:10,background:css.card,border:`1px solid ${css.border}`,borderRadius:10,color:"#ddd",fontSize:15,fontFamily:css.f,outline:"none"}}/>
+            <button onClick={doJoin}
+              style={{width:"100%",padding:"14px 0",background:`linear-gradient(135deg,${css.gold},${css.goldDark})`,border:"none",borderRadius:10,color:css.bg,fontWeight:800,fontSize:16,cursor:"pointer",fontFamily:css.f,letterSpacing:1}}>
+              JOIN POOL
+            </button>
+          </div>
+        )}
+
+        {/* WhatsApp Share */}
+        <button onClick={shareWA}
+          style={{width:"100%",padding:"14px 0",background:"#25D366",border:"none",borderRadius:10,color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:css.f,marginBottom:16,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          Share with Friends on WhatsApp
+        </button>
+
+        {/* Lock date */}
+        <div style={{padding:14,background:css.card,borderRadius:10,border:`1px solid ${css.border}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <span style={{color:"#6b6550",fontSize:11,letterSpacing:1,fontWeight:600}}>🔒 LOCK DATE</span>
+            <button onClick={()=>setAdminOpen(!adminOpen)} style={{background:"none",border:"none",color:"#4a4a3a",cursor:"pointer",fontSize:10,fontFamily:css.f,fontWeight:600}}>{adminOpen?"DONE":"EDIT"}</button>
+          </div>
+          {adminOpen
+            ?<input type="datetime-local" value={pool.lockDate} onChange={e=>commit({...pool,lockDate:e.target.value})}
+              style={{width:"100%",boxSizing:"border-box",padding:8,background:css.bg,border:"1px solid #2a2a28",borderRadius:6,color:css.gold,fontFamily:css.f,fontSize:13}}/>
+            :<div style={{color:css.gold,fontSize:14,fontWeight:600}}>{new Date(pool.lockDate).toLocaleDateString("en-GB",{weekday:"long",year:"numeric",month:"long",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>
+          }
+        </div>
+      </div>
+    </div>
+  );
+
+  // ──── MAIN APP ────
+  return(
+    <div style={{minHeight:"100vh",background:css.bg,color:"#ddd",fontFamily:css.f}}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;900&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+
+      {/* Header bar */}
+      <div style={{background:"linear-gradient(90deg,#0e0d0a,#16140e,#0e0d0a)",borderBottom:`1px solid ${css.border}`,padding:"9px 14px"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",maxWidth:1200,margin:"0 auto",flexWrap:"wrap",gap:6}}>
+          <div style={{display:"flex",alignItems:"center",gap:9}}>
+            <span style={{fontSize:24}}>🏆</span>
+            <div>
+              <div style={{fontFamily:css.fH,fontSize:15,color:css.gold,letterSpacing:3,fontWeight:700}}>WC 2026</div>
+              <div style={{fontSize:10,color:"#5a5a4a",fontWeight:500}}>
+                {viewing?`👁 Viewing ${viewing}`:`${me}`}
+                {saving?" • saving…":""}{locked?" • 🔒":""}
+              </div>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
+            <div style={{background:css.goldBg,borderRadius:6,padding:"4px 10px",fontSize:10,color:css.gold,fontWeight:700}}>{totalPicks}/31</div>
+            {viewing&&<BtnS onClick={()=>setViewing(null)} accent css={css}>← MY PICKS</BtnS>}
+            <select value={viewing||""} onChange={e=>setViewing(e.target.value||null)}
+              style={{padding:"5px 8px",background:css.card,border:`1px solid ${css.border}`,borderRadius:6,color:"#999",fontSize:10,fontFamily:css.f}}>
+              <option value="">View others…</option>
+              {Object.keys(pool.users).filter(n=>n!==me).map(n=><option key={n} value={n}>{n} ({cntPicks(pool.users[n])}/31)</option>)}
+            </select>
+            <BtnS onClick={shareWA} css={css} style={{background:"#25D366",color:"#fff",border:"none"}}>📲 SHARE</BtnS>
+            <BtnS onClick={logout} css={css}>LOG OUT</BtnS>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:"flex",justifyContent:"center",borderBottom:`1px solid ${css.border}`,background:"#0c0c0a"}}>
+        {[
+          {k:"bracket",l:"BRACKET",ico:"🏟️"},
+          {k:"pool",l:"POOL",ico:"👥"},
+        ].map(t=>(
+          <button key={t.k} onClick={()=>setTab(t.k)}
+            style={{padding:"12px 28px",background:tab===t.k?css.goldBg:"transparent",border:"none",
+              borderBottom:tab===t.k?`2px solid ${css.gold}`:"2px solid transparent",
+              color:tab===t.k?css.gold:"#4a4a3a",cursor:"pointer",fontFamily:css.fH,fontSize:14,letterSpacing:2,fontWeight:600,
+              display:"flex",alignItems:"center",gap:8}}>
+            <span>{t.ico}</span>{t.l}
+          </button>
+        ))}
+      </div>
+
+      <div style={{maxWidth:1260,margin:"0 auto",padding:14}}>
+        {/* ═══ BRACKET ═══ */}
+        {tab==="bracket"&&(
+          <div>
+            <p style={{color:"#5a5a4a",fontSize:12,textAlign:"center",marginBottom:16,fontWeight:500}}>
+              {cantEdit?"🔒 View-only — picks are locked or you're viewing another player":"Select teams for each match using the dropdowns, then pick the winner to advance them."}
+            </p>
+            <div style={{overflowX:"auto",paddingBottom:20}}>
+              <div style={{display:"flex",gap:6,minWidth:1100,alignItems:"flex-start"}}>
+
+                {/* R32 Column */}
+                <div style={{minWidth:210,display:"flex",flexDirection:"column",gap:6}}>
+                  <RoundTitle text="ROUND OF 32" css={css}/>
+                  {R32.map(m=>{
+                    const pick=actD?.r32?.[m.id]||{};
+                    const avA=availableTeams(m,"a",actD);
+                    const avB=availableTeams(m,"b",actD);
+                    return(
+                      <div key={m.id} style={{background:css.card,border:`1px solid ${css.border}`,borderRadius:9,padding:4,margin:"0 2px"}}>
+                        {/* Side A */}
+                        <R32Slot value={pick.a||""} options={avA} label={m.aLabel} isWinner={pick.winner===pick.a&&!!pick.a}
+                          onSelect={v=>!cantEdit&&setR32Team(m.id,"a",v)}
+                          onPick={()=>!cantEdit&&pick.a&&pick.b&&setR32Winner(m.id,pick.a)}
+                          disabled={cantEdit} css={css}/>
+                        <div style={{height:1,background:css.border,margin:"2px 4px"}}/>
+                        {/* Side B */}
+                        <R32Slot value={pick.b||""} options={avB} label={m.bLabel} isWinner={pick.winner===pick.b&&!!pick.b}
+                          onSelect={v=>!cantEdit&&setR32Team(m.id,"b",v)}
+                          onPick={()=>!cantEdit&&pick.a&&pick.b&&setR32Winner(m.id,pick.b)}
+                          disabled={cantEdit} css={css}/>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* R16 */}
+                <LaterCol title="ROUND OF 16" matches={LATER.r16} data={actD} getTeams={m=>laterTeams(m,actD)} pick={setLaterWinner} off={cantEdit} css={css} pad={24}/>
+                {/* QF */}
+                <LaterCol title="QUARTER-FINALS" matches={LATER.qf} data={actD} getTeams={m=>laterTeams(m,actD)} pick={setLaterWinner} off={cantEdit} css={css} pad={76}/>
+                {/* SF */}
+                <LaterCol title="SEMI-FINALS" matches={LATER.sf} data={actD} getTeams={m=>laterTeams(m,actD)} pick={setLaterWinner} off={cantEdit} css={css} pad={184}/>
+
+                {/* Final */}
+                <div style={{display:"flex",flexDirection:"column",alignItems:"center",paddingTop:330}}>
+                  <RoundTitle text="🏆 FINAL" css={css}/>
+                  {(()=>{
+                    const m=LATER.final[0];const{a,b}=laterTeams(m,actD);const w=actD?.winners?.[m.id];
+                    return(
+                      <div style={{background:`linear-gradient(135deg,#201c10,#161410)`,border:`2px solid ${css.gold}`,borderRadius:11,padding:4,width:185,boxShadow:`0 0 24px rgba(212,168,75,.15)`}}>
+                        <PickSlot team={a} won={w===a} onClick={()=>a&&!cantEdit&&setLaterWinner(m.id,a)} off={cantEdit} css={css}/>
+                        <div style={{height:1,background:"#2a2820",margin:"2px 4px"}}/>
+                        <PickSlot team={b} won={w===b} onClick={()=>b&&!cantEdit&&setLaterWinner(m.id,b)} off={cantEdit} css={css}/>
+                      </div>
+                    );
+                  })()}
+                  {actD?.winners?.["final"]&&(
+                    <div style={{marginTop:18,textAlign:"center",animation:"fadeIn .5s"}}>
+                      <div style={{fontSize:38}}>🏆</div>
+                      <div style={{fontFamily:css.fH,fontSize:18,color:css.gold,letterSpacing:3,fontWeight:700,marginTop:4}}>CHAMPION</div>
+                      <div style={{fontSize:34,marginTop:4}}>{F$[actD.winners["final"]]}</div>
+                      <div style={{fontSize:16,color:"#f2e080",fontWeight:800,marginTop:2}}>{actD.winners["final"]}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ POOL ═══ */}
+        {tab==="pool"&&(
+          <div>
+            <div style={{textAlign:"center",marginBottom:24,marginTop:8}}>
+              <h2 style={{fontFamily:css.fH,fontSize:22,color:css.gold,letterSpacing:3,margin:"0 0 4px"}}>POOL OVERVIEW</h2>
+              <p style={{color:"#4a4a3a",fontSize:11,fontWeight:500}}>{lastSync?`Synced ${lastSync.toLocaleTimeString()}`:""} • auto-refreshes every 20s</p>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:12,maxWidth:720,margin:"0 auto"}}>
+              {Object.entries(pool.users).map(([name,data])=>{
+                const p=cntPicks(data);const champ=data.winners?.["final"];const isMe=name===me;
+                return(
+                  <div key={name} style={{background:isMe?css.goldBg:css.card,border:`1px solid ${isMe?css.goldDark:css.border}`,borderRadius:12,padding:16,transition:"all .2s"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                      <span style={{fontFamily:css.fH,fontSize:16,color:isMe?css.gold:"#c0c0b0",letterSpacing:1,fontWeight:700}}>{name}</span>
+                      {isMe&&<span style={{fontSize:8,color:css.gold,background:"rgba(212,168,75,.15)",padding:"2px 8px",borderRadius:4,fontWeight:700,letterSpacing:1}}>YOU</span>}
+                    </div>
+                    {/* progress */}
+                    <div style={{height:6,background:"rgba(255,255,255,.05)",borderRadius:3,overflow:"hidden",marginBottom:8}}>
+                      <div style={{height:"100%",width:`${(p/31)*100}%`,background:`linear-gradient(90deg,${css.green},${css.gold})`,borderRadius:3,transition:"width .4s"}}/>
+                    </div>
+                    <div style={{fontSize:12,color:"#6b6550",fontWeight:600}}>{p}/31 picks</div>
+                    {champ&&<div style={{fontSize:13,color:css.greenTxt,marginTop:6,fontWeight:600}}>🏆 {F$[champ]} {champ}</div>}
+                    {!isMe&&(
+                      <button onClick={()=>{setViewing(name);setTab("bracket")}}
+                        style={{marginTop:8,padding:"6px 14px",background:"transparent",border:`1px solid ${css.border}`,borderRadius:6,color:"#6b6550",fontSize:11,cursor:"pointer",fontFamily:css.f,fontWeight:600,transition:"all .15s"}}
+                        onMouseEnter={e=>e.target.style.borderColor=css.gold} onMouseLeave={e=>e.target.style.borderColor=css.border}>
+                        VIEW BRACKET →
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Lock date & share */}
+            <div style={{maxWidth:400,margin:"30px auto 0"}}>
+              <div style={{padding:16,background:css.card,borderRadius:10,border:`1px solid ${css.border}`,marginBottom:12}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <span style={{color:"#6b6550",fontSize:11,letterSpacing:1,fontWeight:700}}>🔒 LOCK DATE</span>
+                  <button onClick={()=>setAdminOpen(!adminOpen)} style={{background:"none",border:"none",color:"#4a4a3a",cursor:"pointer",fontSize:10,fontFamily:css.f,fontWeight:600}}>{adminOpen?"DONE":"EDIT"}</button>
+                </div>
+                {adminOpen
+                  ?<input type="datetime-local" value={pool.lockDate} onChange={e=>commit({...pool,lockDate:e.target.value})}
+                    style={{width:"100%",boxSizing:"border-box",padding:8,background:css.bg,border:"1px solid #2a2a28",borderRadius:6,color:css.gold,fontFamily:css.f,fontSize:13}}/>
+                  :<div style={{color:css.gold,fontSize:14,fontWeight:600}}>{new Date(pool.lockDate).toLocaleDateString("en-GB",{weekday:"long",year:"numeric",month:"long",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>
+                }
+                {locked&&<div style={{color:css.red,fontSize:11,marginTop:4,fontWeight:600}}>🔒 All picks are now LOCKED</div>}
+              </div>
+
+              <button onClick={shareWA}
+                style={{width:"100%",padding:"14px 0",background:"#25D366",border:"none",borderRadius:10,color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:css.f,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+                📲 Share Pool on WhatsApp
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════
+   COMPONENTS
+   ═══════════════════════════════════════════════ */
+function Stat({label,value,css,color}){
+  return(
+    <div style={{textAlign:"center"}}>
+      <div style={{fontSize:18,fontFamily:css.fH,fontWeight:700,color:color||css.gold,letterSpacing:1}}>{value}</div>
+      <div style={{fontSize:9,color:"#5a5a4a",letterSpacing:1,fontWeight:600,marginTop:2}}>{label}</div>
+    </div>
+  );
+}
+function SectionLabel({text,css}){
+  return <h3 style={{color:css.gold,fontFamily:css.fH,fontSize:14,letterSpacing:2,marginBottom:10,fontWeight:600}}>{text}</h3>;
+}
+function RoundTitle({text,css}){
+  return <div style={{fontFamily:css.fH,fontSize:11,color:"#6b6550",letterSpacing:2,textAlign:"center",marginBottom:4,fontWeight:600}}>{text}</div>;
+}
+function BtnS({children,onClick,accent,css,style={}}){
+  return(
+    <button onClick={onClick}
+      style={{padding:"5px 12px",background:accent?`linear-gradient(135deg,${css.gold},${css.goldDark})`:css.card,
+        border:accent?"none":`1px solid ${css.border}`,borderRadius:5,color:accent?css.bg:"#6b6550",
+        fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:css.f,...style}}>
+      {children}
+    </button>
+  );
+}
+
+// R32: a slot with a dropdown to pick the team + click to mark as winner
+function R32Slot({value,options,label,isWinner,onSelect,onPick,disabled,css}){
+  return(
+    <div style={{display:"flex",alignItems:"center",gap:4,padding:"3px 4px"}}>
+      <button onClick={onPick} disabled={disabled||!value} title="Pick as winner"
+        style={{width:24,height:24,borderRadius:6,border:"none",
+          background:isWinner?css.greenBg:"transparent",
+          color:isWinner?css.greenTxt:"#2a2a28",fontSize:12,cursor:disabled||!value?"default":"pointer",
+          display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s",flexShrink:0}}>
+        {isWinner?"✓":"○"}
+      </button>
+      {value&&<span style={{fontSize:15,flexShrink:0}}>{F$[value]||"🏳️"}</span>}
+      <select value={value} onChange={e=>onSelect(e.target.value)} disabled={disabled}
+        style={{flex:1,padding:"5px 4px",background:value?css.cardB:css.bg,
+          border:`1px solid ${value?css.border:"#1a1a18"}`,borderRadius:6,
+          color:value?(isWinner?css.greenTxt:"#c0c0b0"):"#5a5a4a",
+          fontSize:11,fontFamily:css.f,fontWeight:value?600:400,outline:"none",cursor:disabled?"default":"pointer",
+          minWidth:0,appearance:"auto"}}>
+        <option value="" style={{background:css.bg,color:"#5a5a4a"}}>{label}…</option>
+        {options.map(t=><option key={t} value={t} style={{background:css.bg,color:"#c0c0b0"}}>{F$[t]} {t}</option>)}
+      </select>
+    </div>
+  );
+}
+
+// Later rounds column
+function LaterCol({title,matches,data,getTeams,pick,off,css,pad=0}){
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:6,paddingTop:pad,minWidth:175}}>
+      <RoundTitle text={title} css={css}/>
+      {matches.map(m=>{
+        const{a,b}=getTeams(m);const w=data?.winners?.[m.id];
+        return(
+          <div key={m.id} style={{background:css.card,border:`1px solid ${css.border}`,borderRadius:9,padding:3,margin:"0 3px"}}>
+            <PickSlot team={a} won={w===a} onClick={()=>a&&!off&&pick(m.id,a)} off={off} css={css}/>
+            <div style={{height:1,background:css.border,margin:"2px 4px"}}/>
+            <PickSlot team={b} won={w===b} onClick={()=>b&&!off&&pick(m.id,b)} off={off} css={css}/>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Click-to-pick slot for R16+
+function PickSlot({team,won,onClick,off,css}){
+  const[h,setH]=useState(false);
+  return(
+    <button onClick={onClick} disabled={!team||off}
+      onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
+      style={{
+        display:"flex",alignItems:"center",gap:6,width:"100%",padding:"6px 8px",
+        background:won?css.greenBg:h&&team&&!off?"rgba(212,168,75,.06)":"transparent",
+        border:"none",borderRadius:5,color:won?css.greenTxt:team?"#c0c0b0":"#2a2a28",
+        cursor:!team||off?"default":"pointer",fontFamily:css.f,
+        fontSize:12,fontWeight:won?700:500,textAlign:"left",transition:"all .12s",
+      }}>
+      <span style={{fontSize:15}}>{team?F$[team]||"🏳️":"–"}</span>
+      <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{team||"TBD"}</span>
+      {won&&<span style={{fontSize:9,color:css.green,flexShrink:0}}>✓</span>}
+    </button>
+  );
+}
